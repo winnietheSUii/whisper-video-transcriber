@@ -92,8 +92,9 @@
             </div>
             
             <div id="loading" class="loading-state hidden">
-                <div class="spinner"></div>
-                <p id="status-text" style="font-weight: 500; color: #f8fafc;">Queued...</p>
+                <div class="spinner" style="margin-bottom: 1rem;"></div>
+                <p id="status-text" style="font-weight: 500; color: #f8fafc; margin-bottom: 1rem;">Queued...</p>
+                <button id="cancel-btn" class="btn" style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #f87171; padding: 0.5rem 1rem; width: auto; display: inline-block;">Cancel Action</button>
             </div>
         </div>
 
@@ -149,6 +150,15 @@
         let pollInterval = null;
         let finalTxt = "";
         let finalSrt = "";
+        let currentJobId = null;
+        let startTime = 0;
+
+        window.addEventListener('load', () => {
+            const savedJobId = localStorage.getItem('currentJobId');
+            if (savedJobId) {
+                startPolling(savedJobId, true);
+            }
+        });
 
         function showLoading() {
             document.getElementById('loading').classList.remove('hidden');
@@ -161,35 +171,70 @@
             document.querySelectorAll('.magic-btn').forEach(b => b.disabled = false);
         }
 
-        function startPolling(jobId) {
+        function startPolling(jobId, isResume = false) {
+            currentJobId = jobId;
+            localStorage.setItem('currentJobId', jobId);
+            
+            if (!isResume) startTime = Date.now();
+            else startTime = localStorage.getItem('currentJobStartTime') || Date.now();
+            
+            localStorage.setItem('currentJobStartTime', startTime);
+
             document.getElementById('status-text').textContent = "Queued in background...";
+            showLoading();
             
             pollInterval = setInterval(async () => {
                 try {
                     const res = await fetch(`/status/${jobId}`);
+                    if (res.status === 404) {
+                        clearInterval(pollInterval);
+                        hideLoading();
+                        localStorage.removeItem('currentJobId');
+                        return;
+                    }
+                    
                     const data = await res.json();
                     
                     if (data.status === 'completed') {
                         clearInterval(pollInterval);
                         hideLoading();
+                        localStorage.removeItem('currentJobId');
                         finalTxt = data.text;
                         finalSrt = data.srt;
                         document.getElementById('result-text').textContent = finalTxt;
                         document.getElementById('result-panel').classList.remove('hidden');
                         document.getElementById('result-panel').scrollIntoView({ behavior: 'smooth' });
-                    } else if (data.status === 'failed') {
+                    } else if (data.status === 'failed' || data.status === 'cancelled') {
                         clearInterval(pollInterval);
                         hideLoading();
-                        alert('Transcribe Failed: ' + data.error);
+                        localStorage.removeItem('currentJobId');
+                        if (data.status === 'failed') alert('Transcribe Failed: ' + data.error);
                     } else {
                         // processing or queued
-                        document.getElementById('status-text').textContent = data.message || "Working...";
+                        let elapsed = Math.floor((Date.now() - startTime) / 1000);
+                        let m = Math.floor(elapsed / 60);
+                        let s = elapsed % 60;
+                        let timeStr = `[${m}m ${s}s]`;
+                        document.getElementById('status-text').textContent = (data.message || "Working...") + " " + timeStr;
                     }
                 } catch (e) {
                     console.error("Polling error", e);
                 }
             }, 2000); // Check every 2 seconds
         }
+
+        document.getElementById('cancel-btn').addEventListener('click', async () => {
+            if (!currentJobId) return;
+            try {
+                await fetch(`/cancel/${currentJobId}`, { method: 'POST' });
+                clearInterval(pollInterval);
+                hideLoading();
+                localStorage.removeItem('currentJobId');
+                alert("Job cancelled! If the model was already transcribing, the background thread might still be churning for a short while, but the UI is freed up.");
+            } catch (e) {
+                alert("Could not cancel: " + e);
+            }
+        });
 
         // Action Hooks
         transcribeUploadBtn.addEventListener('click', async () => {

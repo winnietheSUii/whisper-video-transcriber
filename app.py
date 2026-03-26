@@ -12,6 +12,9 @@ app = Flask(__name__)
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Mute normal HTTP request spam
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 INPUT_DIR = "data/input"
 OUTPUT_DIR = "data/output"
@@ -62,32 +65,48 @@ def process_job(job_id):
         model_name = job['model']
         input_type = job['type']
         
+        if job.get('cancelled'):
+            logging.info(f"[{job_id}] Job cancelled before processing.")
+            return
+
         input_path = job['input_path']
         
         if input_type == 'youtube':
             logging.info(f"[{job_id}] Downloading YouTube video: {job['url']}")
-            job['message'] = 'Downloading audio from YouTube...'
+            job['message'] = 'Downloading audio from YouTube... 0%'
+            
+            def yt_dlp_hook(d):
+                if d['status'] == 'downloading':
+                    percent = d.get('_percent_str', '').strip()
+                    job['message'] = f"Downloading audio from YouTube... {percent}"
+            
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'outtmpl': input_path,
+                'progress_hooks': [yt_dlp_hook],
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
                 }],
-                'quiet': True
+                'quiet': True,
+                'noprogress': True
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([job['url']])
             # the file extension is now technically .mp3 because of postprocessors!
             input_path = input_path.replace('.%(ext)s', '.mp3')
             
+        if job.get('cancelled'):
+            logging.info(f"[{job_id}] Job cancelled before transcription.")
+            return
+
         logging.info(f"[{job_id}] Transcribing with model {model_name}...")
-        job['message'] = f'Transcribing audio (Model: {model_name})...'
+        job['message'] = f'Transcribing audio (Model: {model_name})... This usually takes a few minutes.'
         model = get_whisper_model(model_name)
         
         # CPU optimization: fp16=False
-        result = model.transcribe(input_path, fp16=False)
+        result = model.transcribe(input_path, fp16=False, verbose=True)
         text = result["text"].strip()
         srt_text = generate_srt(result["segments"])
         
@@ -193,6 +212,15 @@ def get_status(job_id):
     if job_id not in jobs:
         return jsonify({"error": "Job not found"}), 404
     return jsonify(jobs[job_id])
+
+@app.route("/cancel/<job_id>", methods=["POST"])
+def cancel_job(job_id):
+    if job_id in jobs:
+        jobs[job_id]['cancelled'] = True
+        jobs[job_id]['status'] = 'cancelled'
+        jobs[job_id]['message'] = 'Job was cancelled by the user.'
+        return jsonify({"success": True})
+    return jsonify({"error": "Job not found"}), 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
