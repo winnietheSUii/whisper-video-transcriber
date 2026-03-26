@@ -19,10 +19,11 @@ services:
       timeout: 10s
       retries: 3
 
-    deploy:
-      resources:
-        limits:
-          memory: 4g
+    # Uncomment the below if you want to limit RAM usage on weaker machines
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 4g
 
 volumes:
   whisper_cache:
