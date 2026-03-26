@@ -14,27 +14,20 @@ A dynamic web application to extract text (subtitles/transcripts) from video fil
 2. **FFmpeg**: Whisper and `yt-dlp` require FFmpeg. 
    - **Windows**: Install via `winget install ffmpeg` 
 
-## Installation
+## Installation & Usage (Docker - Recommended!)⚡
 
-1. Create a virtual environment (optional but recommended):
+Using Docker completely eliminates the need to install FFmpeg or manage Python virtual environments.
+
+1. Ensure [Docker](https://www.docker.com/) is installed.
+2. In your terminal, run:
    ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
+   docker-compose up -d --build
    ```
+3. Open your browser and navigate to `http://localhost:5000`
 
-2. Install the required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
+*That's it!* 
 
-## Usage
-
-1. Start the Flask server:
-   ```bash
-   python app.py
-   ```
-2. Open your browser and navigate to `http://127.0.0.1:5000`
+> Note: The first time you transcribe a file, the AI model will download to a persistent Docker volume, so subsequent uses will occur instantly.
 3. Upload a file or paste a YouTube URL and click Transcribe!
 
 ## Project Structure
