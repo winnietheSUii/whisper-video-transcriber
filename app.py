@@ -105,8 +105,19 @@ def process_job(job_id):
         job['message'] = f'Transcribing audio (Model: {model_name})... This usually takes a few minutes.'
         model = get_whisper_model(model_name)
         
+        language = job.get('language', '').strip()
+        task = job.get('task', 'transcribe')
+        
+        transcribe_args = {
+            "fp16": False,
+            "verbose": True,
+            "task": task
+        }
+        if language:
+            transcribe_args["language"] = language
+
         # CPU optimization: fp16=False
-        result = model.transcribe(input_path, fp16=False, verbose=True)
+        result = model.transcribe(input_path, **transcribe_args)
         text = result["text"].strip()
         srt_text = generate_srt(result["segments"])
         
@@ -164,6 +175,8 @@ def transcribe_upload():
         return jsonify({"error": "No selected file"}), 400
     
     model_name = request.form.get("model", "base")
+    language = request.form.get("language", "")
+    task = request.form.get("task", "transcribe")
     
     file_id = str(uuid.uuid4())
     ext = os.path.splitext(file.filename)[1]
@@ -176,6 +189,8 @@ def transcribe_upload():
         'status': 'queued',
         'input_path': input_path,
         'model': model_name,
+        'language': language,
+        'task': task,
         'message': 'Queued in background...'
     }
     job_queue.put(file_id)
@@ -187,6 +202,8 @@ def transcribe_youtube():
     data = request.json
     url = data.get("url")
     model_name = data.get("model", "base")
+    language = data.get("language", "")
+    task = data.get("task", "transcribe")
     
     if not url:
         return jsonify({"error": "No URL provided"}), 400
@@ -201,6 +218,8 @@ def transcribe_youtube():
         'url': url,
         'input_path': input_path,
         'model': model_name,
+        'language': language,
+        'task': task,
         'message': 'Queued in background...'
     }
     job_queue.put(file_id)

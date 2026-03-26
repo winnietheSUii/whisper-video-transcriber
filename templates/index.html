@@ -49,17 +49,39 @@
 
         <div class="glass-panel">
             
-            <!-- Global Options: AI Model Selection -->
-            <div class="input-group" style="margin-bottom: 2rem;">
-                <label for="global-model">Select AI Model</label>
-                <select id="global-model" class="modern-select">
-                    <option value="tiny">Tiny (Fastest, Smallest)</option>
-                    <option value="base">Base (Good balance)</option>
-                    <option value="small">Small (Better accuracy)</option>
-                    <option value="medium" selected>Medium (High accuracy, Recommended)</option>
-                    <option value="large-v2">Large-V2 (Pro: Excellence)</option>
-                    <option value="large-v3">Large-V3 (God-tier: Takes ~6GB RAM, but perfect grammar)</option>
-                </select>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                <!-- Global Options: AI Model Selection -->
+                <div class="input-group">
+                    <label for="global-model">Select AI Model</label>
+                    <select id="global-model" class="modern-select">
+                        <option value="tiny">Tiny (Fastest, Smallest)</option>
+                        <option value="base">Base (Good balance)</option>
+                        <option value="small">Small (Better accuracy)</option>
+                        <option value="medium" selected>Medium (High accuracy, Recommended)</option>
+                        <option value="large-v2">Large-V2 (Pro: Excellence)</option>
+                        <option value="large-v3">Large-V3 (God-tier)</option>
+                    </select>
+                </div>
+                
+                <div class="input-group">
+                    <label for="global-language">Spoken Language</label>
+                    <select id="global-language" class="modern-select">
+                        <option value="" selected>Auto Detect</option>
+                        <option value="th">Thai</option>
+                        <option value="en">English</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="zh">Chinese</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="global-task">Output Task</label>
+                    <select id="global-task" class="modern-select">
+                        <option value="transcribe" selected>Transcribe (Original Text)</option>
+                        <option value="translate">Translate to English</option>
+                    </select>
+                </div>
             </div>
 
             <div class="tabs">
@@ -244,6 +266,8 @@
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('model', document.getElementById('global-model').value);
+            formData.append('language', document.getElementById('global-language').value);
+            formData.append('task', document.getElementById('global-task').value);
 
             try {
                 const res = await fetch('/transcribe/upload', { method: 'POST', body: formData });
@@ -264,7 +288,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         url: url,
-                        model: document.getElementById('global-model').value 
+                        model: document.getElementById('global-model').value,
+                        language: document.getElementById('global-language').value,
+                        task: document.getElementById('global-task').value
                     })
                 });
                 const data = await res.json();
