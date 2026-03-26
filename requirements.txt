@@ -1,7 +1,8 @@
-openai-whisper
+--index-url https://download.pytorch.org/whl/cpu
 torch
 torchvision
 torchaudio
+openai-whisper
 flask
 yt-dlp
 werkzeug
