@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scribe | AI Video Transcriber</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="background-elements">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+    
+    <main class="container">
+        <header>
+            <h1>Scribe</h1>
+            <p>Transform audio and video into text with AI</p>
+        </header>
+
+        <div class="glass-panel">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="upload">Upload File</button>
+                <button class="tab-btn" data-tab="youtube">YouTube URL</button>
+            </div>
+
+            <div class="tab-content active" id="tab-upload">
+                <div class="upload-area" id="drop-zone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p>Drag & drop your video/audio file here</p>
+                    <span class="or">or</span>
+                    <input type="file" id="file-input" accept="audio/*,video/*" hidden>
+                    <button class="btn primary-btn" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                    <div id="file-name" class="file-name"></div>
+                </div>
+                <button id="transcribe-upload-btn" class="btn magic-btn" disabled>Transcribe Media</button>
+            </div>
+
+            <div class="tab-content" id="tab-youtube">
+                <div class="input-group">
+                    <label for="yt-url">YouTube Video URL</label>
+                    <input type="url" id="yt-url" placeholder="https://www.youtube.com/watch?v=...">
+                </div>
+                <button id="transcribe-yt-btn" class="btn magic-btn">Transcribe Video</button>
+            </div>
+            
+            <div id="loading" class="loading-state hidden">
+                <div class="spinner"></div>
+                <p>AI is listening... this may take a moment depending on the length of the video.</p>
+            </div>
+        </div>
+
+        <div id="result-panel" class="glass-panel result-panel hidden">
+            <div class="result-header">
+                <h2>Transcription Result</h2>
+                <button id="copy-btn" class="icon-btn" title="Copy text">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="result-text" id="result-text"></div>
+        </div>
+    </main>
+
+    <script>
+        // Tab switching
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach(b => b.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                btn.classList.add('active');
+                document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+            });
+        });
+
+        // File upload UI
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const transcribeUploadBtn = document.getElementById('transcribe-upload-btn');
+        let selectedFile = null;
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                fileNameDisplay.textContent = selectedFile.name;
+                transcribeUploadBtn.disabled = false;
+            }
+        });
+
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-active');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-active'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-active');
+            if (e.dataTransfer.files.length > 0) {
+                selectedFile = e.dataTransfer.files[0];
+                fileNameDisplay.textContent = selectedFile.name;
+                fileInput.files = e.dataTransfer.files;
+                transcribeUploadBtn.disabled = false;
+            }
+        });
+
+        // Backend Interaction
+        const loadingState = document.getElementById('loading');
+        const resultPanel = document.getElementById('result-panel');
+        const resultText = document.getElementById('result-text');
+
+        function showLoading() {
+            loadingState.classList.remove('hidden');
+            resultPanel.classList.add('hidden');
+            document.querySelectorAll('.magic-btn').forEach(b => b.disabled = true);
+        }
+
+        function hideLoading() {
+            loadingState.classList.add('hidden');
+            document.querySelectorAll('.magic-btn').forEach(b => b.disabled = false);
+        }
+
+        function showResult(text) {
+            resultText.textContent = text;
+            resultPanel.classList.remove('hidden');
+            resultPanel.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        transcribeUploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            
+            showLoading();
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/transcribe/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showResult(data.text);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('Request failed');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        document.getElementById('transcribe-yt-btn').addEventListener('click', async () => {
+            const url = document.getElementById('yt-url').value;
+            if (!url) {
+                alert('Please enter a YouTube URL');
+                return;
+            }
+            
+            showLoading();
+            try {
+                const response = await fetch('/transcribe/youtube', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showResult(data.text);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('Request failed');
+            } finally {
+                hideLoading();
+            }
+        });
+
+        document.getElementById('copy-btn').addEventListener('click', () => {
+            navigator.clipboard.writeText(resultText.textContent);
+            const btn = document.getElementById('copy-btn');
+            btn.style.color = '#4ade80';
+            setTimeout(() => btn.style.color = 'inherit', 2000);
+        });
+    </script>
+</body>
+</html>
